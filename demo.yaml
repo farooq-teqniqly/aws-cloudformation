@@ -1,0 +1,290 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: CEN 6017 final project.
+
+Parameters:
+  VpcCIDR:
+    Description: The IP range (CIDR notation) for this VPC.
+    Type: String
+    AllowedPattern: '([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})/([0-9]{1,2})'
+    ConstraintDescription: The IP range must be in valid CIDR notation.
+
+  SubnetPublicCIDR:
+    Description: The IP range (CIDR notation) for the public subnet.
+    Type: String
+    AllowedPattern: '([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})/([0-9]{1,2})'
+    ConstraintDescription: The IP range must be in valid CIDR notation.
+
+  SubnetPrivateCIDR:
+    Description: The IP range (CIDR notation) for the private subnet.
+    Type: String
+    AllowedPattern: '([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})/([0-9]{1,2})'
+    ConstraintDescription: The IP range must be in valid CIDR notation.
+
+  HttpAllowCIDR:
+    Description: The IP range (CIDR notation) that can access the VPC using HTTP.
+    Type: String
+    AllowedPattern: '([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})/([0-9]{1,2})'
+    ConstraintDescription: The IP range must be in valid CIDR notation.
+    MaxLength: 18
+    MinLength: 9
+
+  ApplicationName:
+    Description: The Elastic Beanstalk application name.
+    Type: String
+
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCIDR
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      InstanceTenancy: default
+      Tags:
+        - Key: "name"
+          Value: !Join ["-", [!Ref AWS::StackName, "vpc"]]
+
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: !Ref SubnetPublicCIDR
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: "name"
+          Value: !Join ["-", [!Ref AWS::StackName, "public", "subnet"]]
+      VpcId: !Ref VPC
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      Tags:
+        - Key: "name"
+          Value: !Join ["-", [!Ref AWS::StackName, "public", "rt"]]
+      VpcId: !Ref VPC
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet
+
+  PrivateSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: !Ref SubnetPrivateCIDR
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: "name"
+          Value: !Join ["-", [!Ref AWS::StackName, "private", "subnet"]]
+      VpcId: !Ref VPC
+
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      Tags:
+        - Key: "name"
+          Value: !Join ["-", [!Ref AWS::StackName, "private", "rt"]]
+      VpcId: !Ref VPC
+
+  PrivateRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway
+      RouteTableId: !Ref PrivateRouteTable
+
+  PrivateSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnet
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: "name"
+          Value: !Join ["-", [!Ref AWS::StackName, "igw"]]
+
+  VpcGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  NatGatewayElasticIp:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: !Ref VPC
+      Tags:
+        - Key: "name"
+          Value: !Join ["-", [!Ref AWS::StackName, "ngw", "eip"]]
+
+  NatGateway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatGatewayElasticIp.AllocationId
+      ConnectivityType: public
+      SubnetId: !Ref PublicSubnet
+      Tags:
+        - Key: "name"
+          Value: !Join ["-", [!Ref AWS::StackName, "ngw"]]
+
+  AllowHttpSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allows HTTP access to VPC.
+      GroupName: !Join ["-", [!Ref AWS::StackName, "vpc", "sg"]]
+      SecurityGroupIngress:
+        - CidrIp: !Ref HttpAllowCIDR
+          Description: Allow HTTP access.
+          FromPort: 80
+          IpProtocol: tcp
+          ToPort: 80
+
+      Tags:
+        - Key: "name"
+          Value: !Join ["-", [!Ref AWS::StackName, "vpc", "sg"]]
+      VpcId: !Ref VPC
+
+  ElasticBeanstalkApp:
+    Type: AWS::ElasticBeanstalk::Application
+    Properties:
+      ApplicationName:
+        !Join ["-", [!Ref AWS::StackName, "ebs", !Ref ApplicationName]]
+
+  ElasticBeanstalkTestEnvironment:
+    Type: AWS::ElasticBeanstalk::Environment
+    Properties:
+      ApplicationName: !Ref ElasticBeanstalkApp
+      Description: The test environment
+      EnvironmentName: test
+      Tier:
+        Name: WebServer
+        Type: Standard
+      OptionSettings:
+        - Namespace: "aws:autoscaling:launchconfiguration"
+          OptionName: IamInstanceProfile
+          Value: !Ref BeanStalkEC2InstanceProfile
+        - Namespace: "aws:autoscaling:asg"
+          OptionName: Availability Zones
+          Value: Any 2
+        - Namespace: "aws:autoscaling:asg"
+          OptionName: MinSize
+          Value: 2
+        - Namespace: "aws:autoscaling:asg"
+          OptionName: MaxSize
+          Value: 3
+        - Namespace: "aws:autoscaling:trigger"
+          OptionName: MeasureName
+          Value: CPUUtilization
+        - Namespace: "aws:elasticbeanstalk:command"
+          OptionName: DeploymentPolicy
+          Value: AllAtOnce
+        - Namespace: "aws:autoscaling:updatepolicy:rollingupdate"
+          OptionName: RollingUpdateEnabled
+          Value: false
+        - Namespace: "aws:ec2:instances"
+          OptionName: InstanceTypes
+          Value: "t2.small,t3.small"
+        - Namespace: "aws:ec2:vpc"
+          OptionName: VPCId
+          Value: !Ref VPC
+        - Namespace: "aws:elasticbeanstalk:application:environment"
+          OptionName: SERVER_PORT
+          Value: 8080
+      SolutionStackName: "64bit Amazon Linux 2 v5.4.7 running Node.js 14"
+      Tags:
+        - Key: "name"
+          Value: !Join ["-", [!Ref AWS::StackName, "ebs", "env", "test"]]
+
+  ElasticBeanstalkProdEnvironment:
+    Type: AWS::ElasticBeanstalk::Environment
+    Properties:
+      ApplicationName: !Ref ElasticBeanstalkApp
+      Description: The prod environment
+      EnvironmentName: prod
+      Tier:
+        Name: WebServer
+        Type: Standard
+      OptionSettings:
+        - Namespace: "aws:autoscaling:launchconfiguration"
+          OptionName: IamInstanceProfile
+          Value: !Ref BeanStalkEC2InstanceProfile
+        - Namespace: "aws:autoscaling:asg"
+          OptionName: Availability Zones
+          Value: Any 2
+        - Namespace: "aws:autoscaling:asg"
+          OptionName: MinSize
+          Value: 2
+        - Namespace: "aws:autoscaling:asg"
+          OptionName: MaxSize
+          Value: 3
+        - Namespace: "aws:autoscaling:trigger"
+          OptionName: MeasureName
+          Value: CPUUtilization
+        - Namespace: "aws:elasticbeanstalk:command"
+          OptionName: DeploymentPolicy
+          Value: AllAtOnce
+        - Namespace: "aws:autoscaling:updatepolicy:rollingupdate"
+          OptionName: RollingUpdateEnabled
+          Value: false
+        - Namespace: "aws:ec2:instances"
+          OptionName: InstanceTypes
+          Value: "t2.small,t3.small"
+        - Namespace: "aws:ec2:vpc"
+          OptionName: VPCId
+          Value: !Ref VPC
+        - Namespace: "aws:elasticbeanstalk:application:environment"
+          OptionName: SERVER_PORT
+          Value: 8080
+      SolutionStackName: "64bit Amazon Linux 2 v5.4.7 running Node.js 14"
+      Tags:
+        - Key: "name"
+          Value: !Join ["-", [!Ref AWS::StackName, "ebs", "env", "prod"]]
+
+  BeanStalkEC2InstanceProfile:
+    Type: "AWS::IAM::InstanceProfile"
+    Properties:
+      InstanceProfileName:
+        !Join ["-", [!Ref AWS::StackName, "ebs", "instance-profile"]]
+      Roles:
+        - !Ref NodeInstanceRole
+
+  NodeInstanceRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      RoleName:
+        !Join [
+          "-",
+          [
+            !Ref AWS::StackName,
+            "ebs",
+            !Ref ApplicationName,
+            "ec2-service-role",
+          ],
+        ]
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - "sts:AssumeRole"
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/AWSElasticBeanstalkWebTier"
+        - "arn:aws:iam::aws:policy/AWSElasticBeanstalkMulticontainerDocker"
+        - "arn:aws:iam::aws:policy/AWSElasticBeanstalkWorkerTier"
+        - "arn:aws:iam::aws:policy/AWSElasticBeanstalkCustomPlatformforEC2Role"
+        - "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+      Path: /
