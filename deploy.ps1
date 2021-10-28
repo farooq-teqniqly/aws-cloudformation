@@ -1,7 +1,6 @@
 $stackName = 'fm-example'
 
 aws cloudformation deploy `
-    --capabilities CAPABILITY_NAMED_IAM `
     --template-file demo.yaml `
     --stack-name $stackName `
     --parameter-overrides `
@@ -10,4 +9,4 @@ aws cloudformation deploy `
     SubnetPublicCIDR=20.20.1.0/24 `
     SubnetPrivateCIDR=20.20.2.0/24 `
     HttpAllowCIDR=97.113.30.50/32 `
-    ApplicationName=quote-server
+    ElasticBeanstalkAppName=quote-server

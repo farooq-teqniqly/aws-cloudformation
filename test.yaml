@@ -1,0 +1,259 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  AWS CloudFormation Sample Template ElasticBeanstalk_Nodejs_Sample: Configure
+  and launch the AWS Elastic Beanstalk sample application. **WARNING** This
+  template creates one or more Amazon EC2 instances. You will be billed for the
+  AWS resources used if you create a stack from this template.
+Parameters:
+  KeyName:
+    Description: >-
+      Name of an existing EC2 KeyPair to enable SSH access to the AWS Elastic
+      Beanstalk instance
+    Type: "AWS::EC2::KeyPair::KeyName"
+    ConstraintDescription: must be the name of an existing EC2 KeyPair.
+Mappings:
+  Region2Principal:
+    ap-east-1:
+      EC2Principal: ec2.amazonaws.com
+      OpsWorksPrincipal: opsworks.amazonaws.com
+    ap-northeast-1:
+      EC2Principal: ec2.amazonaws.com
+      OpsWorksPrincipal: opsworks.amazonaws.com
+    ap-northeast-2:
+      EC2Principal: ec2.amazonaws.com
+      OpsWorksPrincipal: opsworks.amazonaws.com
+    ap-northeast-3:
+      EC2Principal: ec2.amazonaws.com
+      OpsWorksPrincipal: opsworks.amazonaws.com
+    ap-south-1:
+      EC2Principal: ec2.amazonaws.com
+      OpsWorksPrincipal: opsworks.amazonaws.com
+    ap-southeast-1:
+      EC2Principal: ec2.amazonaws.com
+      OpsWorksPrincipal: opsworks.amazonaws.com
+    ap-southeast-2:
+      EC2Principal: ec2.amazonaws.com
+      OpsWorksPrincipal: opsworks.amazonaws.com
+    ca-central-1:
+      EC2Principal: ec2.amazonaws.com
+      OpsWorksPrincipal: opsworks.amazonaws.com
+    cn-north-1:
+      EC2Principal: ec2.amazonaws.com.cn
+      OpsWorksPrincipal: opsworks.amazonaws.com.cn
+    cn-northwest-1:
+      EC2Principal: ec2.amazonaws.com.cn
+      OpsWorksPrincipal: opsworks.amazonaws.com.cn
+    eu-central-1:
+      EC2Principal: ec2.amazonaws.com
+      OpsWorksPrincipal: opsworks.amazonaws.com
+    eu-north-1:
+      EC2Principal: ec2.amazonaws.com
+      OpsWorksPrincipal: opsworks.amazonaws.com
+    eu-west-1:
+      EC2Principal: ec2.amazonaws.com
+      OpsWorksPrincipal: opsworks.amazonaws.com
+    eu-west-2:
+      EC2Principal: ec2.amazonaws.com
+      OpsWorksPrincipal: opsworks.amazonaws.com
+    eu-west-3:
+      EC2Principal: ec2.amazonaws.com
+      OpsWorksPrincipal: opsworks.amazonaws.com
+    me-south-1:
+      EC2Principal: ec2.amazonaws.com
+      OpsWorksPrincipal: opsworks.amazonaws.com
+    sa-east-1:
+      EC2Principal: ec2.amazonaws.com
+      OpsWorksPrincipal: opsworks.amazonaws.com
+    us-east-1:
+      EC2Principal: ec2.amazonaws.com
+      OpsWorksPrincipal: opsworks.amazonaws.com
+    us-east-2:
+      EC2Principal: ec2.amazonaws.com
+      OpsWorksPrincipal: opsworks.amazonaws.com
+    us-west-1:
+      EC2Principal: ec2.amazonaws.com
+      OpsWorksPrincipal: opsworks.amazonaws.com
+    us-west-2:
+      EC2Principal: ec2.amazonaws.com
+      OpsWorksPrincipal: opsworks.amazonaws.com
+Resources:
+  WebServerRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - !FindInMap
+                  - Region2Principal
+                  - !Ref "AWS::Region"
+                  - EC2Principal
+            Action:
+              - "sts:AssumeRole"
+      Path: /
+    Metadata:
+      "AWS::CloudFormation::Designer":
+        id: 4bd454ab-3695-46a6-a8ec-5af212543796
+  WebServerRolePolicy:
+    Type: "AWS::IAM::Policy"
+    Properties:
+      PolicyName: WebServerRole
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            NotAction: "iam:*"
+            Resource: "*"
+      Roles:
+        - !Ref WebServerRole
+    Metadata:
+      "AWS::CloudFormation::Designer":
+        id: d210c80f-b153-4a04-8385-2a6b5bdfab13
+  WebServerInstanceProfile:
+    Type: "AWS::IAM::InstanceProfile"
+    Properties:
+      Path: /
+      Roles:
+        - !Ref WebServerRole
+    Metadata:
+      "AWS::CloudFormation::Designer":
+        id: c5f1eadc-a45f-4c85-89fa-09ae3a94cfde
+  SampleApplication:
+    Type: "AWS::ElasticBeanstalk::Application"
+    Properties:
+      Description: AWS Elastic Beanstalk Sample Node.js Application
+    Metadata:
+      "AWS::CloudFormation::Designer":
+        id: ed8b81f5-9e59-4439-9e2e-02b79cdf4ac5
+  SampleApplicationVersion:
+    Type: "AWS::ElasticBeanstalk::ApplicationVersion"
+    Properties:
+      Description: Version 1.0
+      ApplicationName: !Ref SampleApplication
+      SourceBundle:
+        S3Bucket: !Join
+          - "-"
+          - - elasticbeanstalk-samples
+            - !Ref "AWS::Region"
+        S3Key: nodejs-sample.zip
+    Metadata:
+      "AWS::CloudFormation::Designer":
+        id: 2a85e4e7-3733-4ce9-8617-b32a0477becd
+  SampleConfigurationTemplate:
+    Type: "AWS::ElasticBeanstalk::ConfigurationTemplate"
+    Properties:
+      ApplicationName: !Ref SampleApplication
+      Description: SSH access to Node.JS Application
+      SolutionStackName: 64bit Amazon Linux 2018.03 v4.7.1 running Node.js
+      OptionSettings:
+        - Namespace: "aws:autoscaling:launchconfiguration"
+          OptionName: EC2KeyName
+          Value: !Ref KeyName
+        - Namespace: "aws:autoscaling:launchconfiguration"
+          OptionName: IamInstanceProfile
+          Value: !Ref WebServerInstanceProfile
+    Metadata:
+      "AWS::CloudFormation::Designer":
+        id: e71bdb1c-2579-4df2-929b-4edc92aa2e1f
+  SampleEnvironment:
+    Type: "AWS::ElasticBeanstalk::Environment"
+    Properties:
+      Description: AWS Elastic Beanstalk Environment running Sample Node.js Application
+      ApplicationName: !Ref SampleApplication
+      TemplateName: !Ref SampleConfigurationTemplate
+      VersionLabel: !Ref SampleApplicationVersion
+    Metadata:
+      "AWS::CloudFormation::Designer":
+        id: 8cc69a46-9a81-4cb8-9f7b-e12206a7c832
+Outputs:
+  URL:
+    Description: URL of the AWS Elastic Beanstalk Environment
+    Value: !Join
+      - ""
+      - - "http://"
+        - !GetAtt
+          - SampleEnvironment
+          - EndpointURL
+Metadata:
+  "AWS::CloudFormation::Designer":
+    ed8b81f5-9e59-4439-9e2e-02b79cdf4ac5:
+      size:
+        width: 330
+        height: 330
+      position:
+        x: 120
+        "y": 20
+      z: 1
+      embeds:
+        - 2a85e4e7-3733-4ce9-8617-b32a0477becd
+        - e71bdb1c-2579-4df2-929b-4edc92aa2e1f
+        - 8cc69a46-9a81-4cb8-9f7b-e12206a7c832
+    2a85e4e7-3733-4ce9-8617-b32a0477becd:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 150
+        "y": 80
+      z: 2
+      parent: ed8b81f5-9e59-4439-9e2e-02b79cdf4ac5
+      embeds: []
+      iscontainedinside:
+        - ed8b81f5-9e59-4439-9e2e-02b79cdf4ac5
+    4bd454ab-3695-46a6-a8ec-5af212543796:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 450
+        "y": 90
+      z: 1
+      embeds: []
+    c5f1eadc-a45f-4c85-89fa-09ae3a94cfde:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 450
+        "y": 210
+      z: 1
+      embeds: []
+      isassociatedwith:
+        - 4bd454ab-3695-46a6-a8ec-5af212543796
+    e71bdb1c-2579-4df2-929b-4edc92aa2e1f:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 270
+        "y": 80
+      z: 2
+      parent: ed8b81f5-9e59-4439-9e2e-02b79cdf4ac5
+      embeds: []
+      iscontainedinside:
+        - ed8b81f5-9e59-4439-9e2e-02b79cdf4ac5
+    8cc69a46-9a81-4cb8-9f7b-e12206a7c832:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 150
+        "y": 200
+      z: 2
+      parent: ed8b81f5-9e59-4439-9e2e-02b79cdf4ac5
+      embeds: []
+      isassociatedwith:
+        - e71bdb1c-2579-4df2-929b-4edc92aa2e1f
+      iscontainedinside:
+        - ed8b81f5-9e59-4439-9e2e-02b79cdf4ac5
+    d210c80f-b153-4a04-8385-2a6b5bdfab13:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 450
+        "y": 330
+      z: 1
+      embeds: []
+      isassociatedwith:
+        - 4bd454ab-3695-46a6-a8ec-5af212543796

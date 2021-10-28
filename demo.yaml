@@ -29,7 +29,7 @@ Parameters:
     MaxLength: 18
     MinLength: 9
 
-  ApplicationName:
+  ElasticBeanstalkAppName:
     Description: The Elastic Beanstalk application name.
     Type: String
 
@@ -158,133 +158,84 @@ Resources:
   ElasticBeanstalkApp:
     Type: AWS::ElasticBeanstalk::Application
     Properties:
-      ApplicationName:
-        !Join ["-", [!Ref AWS::StackName, "ebs", !Ref ApplicationName]]
+      ApplicationName: !Ref ElasticBeanstalkAppName
 
   ElasticBeanstalkTestEnvironment:
     Type: AWS::ElasticBeanstalk::Environment
     Properties:
       ApplicationName: !Ref ElasticBeanstalkApp
-      Description: The test environment
       EnvironmentName: test
+      SolutionStackName: 64bit Amazon Linux 2 v5.4.7 running Node.js 14
+      Tags:
+        - Key: "name"
+          Value: !Join ["-", [!Ref AWS::StackName, "ebs", "env", "test"]]
       Tier:
         Name: WebServer
         Type: Standard
       OptionSettings:
-        - Namespace: "aws:autoscaling:launchconfiguration"
+        - Namespace: aws:autoscaling:launchconfiguration
+          OptionName: InstanceType
+          Value: t2.micro
+        - Namespace: aws:autoscaling:launchconfiguration
           OptionName: IamInstanceProfile
-          Value: !Ref BeanStalkEC2InstanceProfile
-        - Namespace: "aws:autoscaling:asg"
-          OptionName: Availability Zones
-          Value: Any 2
-        - Namespace: "aws:autoscaling:asg"
-          OptionName: MinSize
-          Value: 2
-        - Namespace: "aws:autoscaling:asg"
-          OptionName: MaxSize
-          Value: 3
-        - Namespace: "aws:autoscaling:trigger"
-          OptionName: MeasureName
-          Value: CPUUtilization
-        - Namespace: "aws:elasticbeanstalk:command"
-          OptionName: DeploymentPolicy
-          Value: AllAtOnce
-        - Namespace: "aws:autoscaling:updatepolicy:rollingupdate"
-          OptionName: RollingUpdateEnabled
-          Value: false
-        - Namespace: "aws:ec2:instances"
-          OptionName: InstanceTypes
-          Value: "t2.small,t3.small"
-        - Namespace: "aws:ec2:vpc"
+          Value: aws-elasticbeanstalk-ec2-role
+        - Namespace: aws:elasticbeanstalk:environment
+          OptionName: ServiceRole
+          Value: aws-elasticbeanstalk-service-role
+        - Namespace: aws:ec2:vpc
           OptionName: VPCId
           Value: !Ref VPC
+        - Namespace: aws:ec2:vpc
+          OptionName: Subnets
+          Value: !Ref PublicSubnet
         - Namespace: "aws:elasticbeanstalk:application:environment"
-          OptionName: SERVER_PORT
+          OptionName: PORT
           Value: 8080
-      SolutionStackName: "64bit Amazon Linux 2 v5.4.7 running Node.js 14"
-      Tags:
-        - Key: "name"
-          Value: !Join ["-", [!Ref AWS::StackName, "ebs", "env", "test"]]
 
   ElasticBeanstalkProdEnvironment:
     Type: AWS::ElasticBeanstalk::Environment
     Properties:
       ApplicationName: !Ref ElasticBeanstalkApp
-      Description: The prod environment
       EnvironmentName: prod
+      SolutionStackName: 64bit Amazon Linux 2 v5.4.7 running Node.js 14
+      Tags:
+        - Key: "name"
+          Value: !Join ["-", [!Ref AWS::StackName, "ebs", "env", "prod"]]
       Tier:
         Name: WebServer
         Type: Standard
       OptionSettings:
-        - Namespace: "aws:autoscaling:launchconfiguration"
+        - Namespace: aws:autoscaling:launchconfiguration
+          OptionName: InstanceType
+          Value: t2.micro
+        - Namespace: aws:autoscaling:launchconfiguration
           OptionName: IamInstanceProfile
-          Value: !Ref BeanStalkEC2InstanceProfile
-        - Namespace: "aws:autoscaling:asg"
-          OptionName: Availability Zones
-          Value: Any 2
-        - Namespace: "aws:autoscaling:asg"
-          OptionName: MinSize
-          Value: 2
-        - Namespace: "aws:autoscaling:asg"
-          OptionName: MaxSize
-          Value: 3
-        - Namespace: "aws:autoscaling:trigger"
-          OptionName: MeasureName
-          Value: CPUUtilization
-        - Namespace: "aws:elasticbeanstalk:command"
-          OptionName: DeploymentPolicy
-          Value: AllAtOnce
-        - Namespace: "aws:autoscaling:updatepolicy:rollingupdate"
-          OptionName: RollingUpdateEnabled
-          Value: false
-        - Namespace: "aws:ec2:instances"
-          OptionName: InstanceTypes
-          Value: "t2.small,t3.small"
-        - Namespace: "aws:ec2:vpc"
+          Value: aws-elasticbeanstalk-ec2-role
+        - Namespace: aws:elasticbeanstalk:environment
+          OptionName: ServiceRole
+          Value: aws-elasticbeanstalk-service-role
+        - Namespace: aws:ec2:vpc
           OptionName: VPCId
           Value: !Ref VPC
+        - Namespace: aws:ec2:vpc
+          OptionName: Subnets
+          Value: !Ref PublicSubnet
         - Namespace: "aws:elasticbeanstalk:application:environment"
-          OptionName: SERVER_PORT
+          OptionName: PORT
           Value: 8080
-      SolutionStackName: "64bit Amazon Linux 2 v5.4.7 running Node.js 14"
-      Tags:
-        - Key: "name"
-          Value: !Join ["-", [!Ref AWS::StackName, "ebs", "env", "prod"]]
 
-  BeanStalkEC2InstanceProfile:
-    Type: "AWS::IAM::InstanceProfile"
-    Properties:
-      InstanceProfileName:
-        !Join ["-", [!Ref AWS::StackName, "ebs", "instance-profile"]]
-      Roles:
-        - !Ref NodeInstanceRole
-
-  NodeInstanceRole:
-    Type: "AWS::IAM::Role"
-    Properties:
-      RoleName:
-        !Join [
-          "-",
-          [
-            !Ref AWS::StackName,
-            "ebs",
-            !Ref ApplicationName,
-            "ec2-service-role",
-          ],
-        ]
-      AssumeRolePolicyDocument:
-        Version: 2012-10-17
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service:
-                - ec2.amazonaws.com
-            Action:
-              - "sts:AssumeRole"
-      ManagedPolicyArns:
-        - "arn:aws:iam::aws:policy/AWSElasticBeanstalkWebTier"
-        - "arn:aws:iam::aws:policy/AWSElasticBeanstalkMulticontainerDocker"
-        - "arn:aws:iam::aws:policy/AWSElasticBeanstalkWorkerTier"
-        - "arn:aws:iam::aws:policy/AWSElasticBeanstalkCustomPlatformforEC2Role"
-        - "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
-      Path: /
+Outputs:
+  TestURL:
+    Description: Test app URL.
+    Value:
+      !Join [
+        "",
+        ["http://", !GetAtt ElasticBeanstalkTestEnvironment.EndpointURL],
+      ]
+  ProdURL:
+    Description: Production app URL.
+    Value:
+      !Join [
+        "",
+        ["http://", !GetAtt ElasticBeanstalkProdEnvironment.EndpointURL],
+      ]
