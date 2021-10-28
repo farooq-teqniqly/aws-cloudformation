@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: "2010-09-09"
 
-Description: CEN 6017 final project.
+Description: CEN 6017 final project infrastructure CloudFormation template.
 
 Parameters:
   VpcCIDR:
@@ -191,6 +191,12 @@ Resources:
         - Namespace: "aws:elasticbeanstalk:application:environment"
           OptionName: PORT
           Value: 8080
+        - Namespace: aws:autoscaling:asg
+          OptionName: MinSize
+          Value: 1
+        - Namespace: aws:autoscaling:asg
+          OptionName: MaxSize
+          Value: 1
 
   ElasticBeanstalkProdEnvironment:
     Type: AWS::ElasticBeanstalk::Environment
@@ -223,6 +229,12 @@ Resources:
         - Namespace: "aws:elasticbeanstalk:application:environment"
           OptionName: PORT
           Value: 8080
+        - Namespace: aws:autoscaling:asg
+          OptionName: MinSize
+          Value: 1
+        - Namespace: aws:autoscaling:asg
+          OptionName: MaxSize
+          Value: 1
 
 Outputs:
   TestURL:

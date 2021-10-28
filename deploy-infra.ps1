@@ -1,10 +1,9 @@
-$stackName = 'fm-example'
+$stackName = 'fm-cen-infra'
 
 aws cloudformation deploy `
-    --template-file demo.yaml `
+    --template-file infra.yml `
     --stack-name $stackName `
     --parameter-overrides `
-    ResourceGroup=fm-usea-example `
     VpcCIDR=20.20.0.0/16 `
     SubnetPublicCIDR=20.20.1.0/24 `
     SubnetPrivateCIDR=20.20.2.0/24 `
