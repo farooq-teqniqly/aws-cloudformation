@@ -5,5 +5,5 @@ aws cloudformation deploy `
     --stack-name $stackName `
     --capabilities CAPABILITY_NAMED_IAM `
     --parameter-overrides `
-        S3BucketName=debvuilds `
+        S3BucketName=quoteserverbuilds `
         RepoName=quote-server

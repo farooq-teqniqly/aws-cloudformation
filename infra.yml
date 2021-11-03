@@ -33,6 +33,13 @@ Parameters:
     Description: The Elastic Beanstalk application name.
     Type: String
 
+  S3BucketName:
+    Description: The S3 bucket name.
+    Type: String
+  RepoName:
+    Description: The CodeCommit repository name.
+    Type: String
+
 Resources:
   VPC:
     Type: AWS::EC2::VPC
@@ -149,6 +156,11 @@ Resources:
           FromPort: 80
           IpProtocol: tcp
           ToPort: 80
+        - CidrIp: !Join ["", [!Ref NatGatewayElasticIp, "/32"]]
+          Description: Allow HTTP access.
+          FromPort: 80
+          IpProtocol: tcp
+          ToPort: 80
 
       Tags:
         - Key: "name"
@@ -236,6 +248,134 @@ Resources:
           OptionName: MaxSize
           Value: 1
 
+  CodeBuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Join ["-", [!Ref AWS::StackName, "codebuild-role"]]
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - "codebuild.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Path: /service-role/
+      Policies:
+        - PolicyName:
+            !Join ["-", [!Ref AWS::StackName, "codebuild-access-policy"]]
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "codecommit:GitPull"
+                  - "ec2:CreateNetworkInterface"
+                  - "ec2:DescribeDhcpOptions"
+                  - "ec2:DescribeNetworkInterfaces"
+                  - "ec2:DeleteNetworkInterface"
+                  - "ec2:DescribeSubnets"
+                  - "ec2:DescribeSecurityGroups"
+                  - "ec2:DescribeVpcs"
+                  - "ec2:CreateNetworkInterfacePermission"
+                Resource:
+                  - "*"
+              - Effect: Allow
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource:
+                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/*"
+              - Effect: Allow
+                Action:
+                  - "s3:PutObject"
+                  - "s3:GetObject"
+                  - "s3:GetObjectVersion"
+                  - "s3:ListBucket"
+                Resource:
+                  - !Sub arn:aws:s3:::codepipeline-${AWS::Region}-*
+                  - !Sub arn:aws:s3:::${RepoName}/*
+                  - !Sub arn:aws:s3:::${RepoName}
+
+  DevBuildsS3Bucket:
+    Type: "AWS::S3::Bucket"
+    DeletionPolicy: Delete
+    Properties:
+      BucketName: !Join ["-", [!Ref AWS::StackName, !Ref S3BucketName]]
+      VersioningConfiguration:
+        Status: Enabled
+      Tags:
+        - Key: "name"
+          Value: !Join ["-", [!Ref AWS::StackName, "s3b"]]
+
+  UnitTestCodeBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub "build-test-${RepoName}-${AWS::StackName}"
+      Artifacts:
+        Type: S3
+        Location: !Ref RepoName
+        Name: !Sub "build-${RepoName}-${AWS::StackName}"
+        Packaging: ZIP
+      BadgeEnabled: true
+      Description: Unit test project
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:3.0
+      ServiceRole: !GetAtt [CodeBuildRole, Arn]
+      Source:
+        Location: !Sub https://git-codecommit.us-east-1.amazonaws.com/v1/repos/${RepoName}
+        BuildSpec: buildspec.test.yml
+        Type: CODECOMMIT
+      TimeoutInMinutes: 10
+      VpcConfig:
+        VpcId: !Ref VPC
+        Subnets: [!Ref PrivateSubnet]
+        SecurityGroupIds: [!Ref AllowHttpSecurityGroup]
+      Tags:
+        - Key: "name"
+          Value: !Join ["-", [!Ref AWS::StackName, "test-codebuid-project"]]
+
+  SystemTestCodeBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub "build-system-test-${RepoName}-${AWS::StackName}"
+      Artifacts:
+        Type: NO_ARTIFACTS
+      BadgeEnabled: true
+      Description: System test project
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:3.0
+        EnvironmentVariables:
+          - Name: TEST_URL
+            Type: PLAINTEXT
+            Value:
+              !Join [
+                "",
+                [
+                  "http://",
+                  !GetAtt ElasticBeanstalkTestEnvironment.EndpointURL,
+                ],
+              ]
+      ServiceRole: !GetAtt [CodeBuildRole, Arn]
+      Source:
+        Location: !Sub https://git-codecommit.us-east-1.amazonaws.com/v1/repos/${RepoName}
+        BuildSpec: buildspec.int.yml
+        Type: CODECOMMIT
+      TimeoutInMinutes: 10
+      VpcConfig:
+        VpcId: !Ref VPC
+        Subnets: [!Ref PrivateSubnet]
+        SecurityGroupIds: [!Ref AllowHttpSecurityGroup]
+      Tags:
+        - Key: "name"
+          Value:
+            !Join ["-", [!Ref AWS::StackName, "system-test-codebuid-project"]]
 Outputs:
   TestURL:
     Description: Test app URL.

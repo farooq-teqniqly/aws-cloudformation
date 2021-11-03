@@ -35,14 +35,14 @@ Resources:
                 Action:
                   - "codecommit:GitPull"
                 Resource:
-                  - !Sub "arn:aws:codecommit:${AWS::Region}:${AWS::AccountId}:${RepoName}"
+                  - "*"
               - Effect: Allow
                 Action:
                   - "logs:CreateLogGroup"
                   - "logs:CreateLogStream"
                   - "logs:PutLogEvents"
                 Resource:
-                  - !Sub "arn:aws:codecommit:${AWS::Region}:${AWS::AccountId}:"
+                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/*"
               - Effect: Allow
                 Action:
                   - "s3:PutObject"
@@ -54,10 +54,36 @@ Resources:
                   - !Sub arn:aws:s3:::${RepoName}/*
                   - !Sub arn:aws:s3:::${RepoName}
 
-  S3Bucket:
+  DevBuildsS3Bucket:
     Type: "AWS::S3::Bucket"
     DeletionPolicy: Delete
     Properties:
       BucketName: !Join ["-", [!Ref AWS::StackName, !Ref S3BucketName]]
       VersioningConfiguration:
         Status: Enabled
+      Tags:
+        - Key: "name"
+          Value: !Join ["-", [!Ref AWS::StackName, "s3b"]]
+
+  UnitTestCodeBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub "build-${RepoName}-${AWS::StackName}"
+      Artifacts:
+        Type: S3
+        Location: !Ref RepoName
+        Name: !Sub "build-${RepoName}-${AWS::StackName}"
+      BadgeEnabled: true
+      Description: Unit test project
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:3.0
+      ServiceRole: !GetAtt [CodeBuildRole, Arn]
+      Source:
+        Location: !Sub https://git-codecommit.us-east-1.amazonaws.com/v1/repos/${RepoName}
+        Type: CODECOMMIT
+      TimeoutInMinutes: 10
+      Tags:
+        - Key: "name"
+          Value: !Join ["-", [!Ref AWS::StackName, "codebuid-project"]]
