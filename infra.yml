@@ -44,6 +44,7 @@ Parameters:
     Description: The Quote Server app version.
     Type: String
     AllowedPattern: '([0-9]{1,2})\.([0-9]{1,2})\.([0-9]{1,2})'
+
 Resources:
   VPC:
     Type: AWS::EC2::VPC
@@ -149,11 +150,11 @@ Resources:
         - Key: "name"
           Value: !Join ["-", [!Ref AWS::StackName, "ngw"]]
 
-  AllowHttpSecurityGroup:
+  AllowLimitedHttpSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Allows HTTP access to VPC.
-      GroupName: !Join ["-", [!Ref AWS::StackName, "vpc", "sg"]]
+      GroupName: !Join ["-", [!Ref AWS::StackName, "vpc", "lim-http-sg"]]
       SecurityGroupIngress:
         - CidrIp: !Ref HttpAllowCIDR
           Description: Allow HTTP access.
@@ -165,10 +166,25 @@ Resources:
           FromPort: 80
           IpProtocol: tcp
           ToPort: 80
-
       Tags:
         - Key: "name"
-          Value: !Join ["-", [!Ref AWS::StackName, "vpc", "sg"]]
+          Value: !Join ["-", [!Ref AWS::StackName, "vpc", "lim-http-sg"]]
+      VpcId: !Ref VPC
+
+  AllowHttpSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allows HTTP access to VPC.
+      GroupName: !Join ["-", [!Ref AWS::StackName, "vpc", "all-http-sg"]]
+      SecurityGroupIngress:
+        - CidrIp: 0.0.0.0/0
+          Description: Allow HTTP access.
+          FromPort: 80
+          IpProtocol: tcp
+          ToPort: 80
+      Tags:
+        - Key: "name"
+          Value: !Join ["-", [!Ref AWS::StackName, "vpc", "all-http-sg"]]
       VpcId: !Ref VPC
 
   ElasticBeanstalkApp:
@@ -195,6 +211,9 @@ Resources:
         - Namespace: aws:autoscaling:launchconfiguration
           OptionName: IamInstanceProfile
           Value: aws-elasticbeanstalk-ec2-role
+        - Namespace: aws:autoscaling:launchconfiguration
+          OptionName: SecurityGroups
+          Value: !GetAtt AllowLimitedHttpSecurityGroup.GroupId
         - Namespace: aws:elasticbeanstalk:environment
           OptionName: ServiceRole
           Value: aws-elasticbeanstalk-service-role
@@ -236,6 +255,9 @@ Resources:
         - Namespace: aws:autoscaling:launchconfiguration
           OptionName: IamInstanceProfile
           Value: aws-elasticbeanstalk-ec2-role
+        - Namespace: aws:autoscaling:launchconfiguration
+          OptionName: SecurityGroups
+          Value: !GetAtt AllowHttpSecurityGroup.GroupId
         - Namespace: aws:elasticbeanstalk:environment
           OptionName: ServiceRole
           Value: aws-elasticbeanstalk-service-role
@@ -349,7 +371,7 @@ Resources:
       VpcConfig:
         VpcId: !Ref VPC
         Subnets: [!Ref PrivateSubnet]
-        SecurityGroupIds: [!Ref AllowHttpSecurityGroup]
+        SecurityGroupIds: [!GetAtt AllowLimitedHttpSecurityGroup.GroupId]
       Tags:
         - Key: "name"
           Value: !Join ["-", [!Ref AWS::StackName, "test-codebuid-project"]]
@@ -386,7 +408,7 @@ Resources:
       VpcConfig:
         VpcId: !Ref VPC
         Subnets: [!Ref PrivateSubnet]
-        SecurityGroupIds: [!Ref AllowHttpSecurityGroup]
+        SecurityGroupIds: [!GetAtt AllowLimitedHttpSecurityGroup.GroupId]
       Tags:
         - Key: "name"
           Value:
