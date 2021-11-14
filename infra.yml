@@ -40,6 +40,10 @@ Parameters:
     Description: The CodeCommit repository name.
     Type: String
 
+  QuoteServerVersion:
+    Description: The Quote Server app version.
+    Type: String
+    AllowedPattern: '([0-9]{1,2})\.([0-9]{1,2})\.([0-9]{1,2})'
 Resources:
   VPC:
     Type: AWS::EC2::VPC
@@ -203,6 +207,12 @@ Resources:
         - Namespace: "aws:elasticbeanstalk:application:environment"
           OptionName: port
           Value: 8080
+        - Namespace: "aws:elasticbeanstalk:application:environment"
+          OptionName: NODE_ENV
+          Value: Test
+        - Namespace: "aws:elasticbeanstalk:application:environment"
+          OptionName: quote_server_version
+          Value: !Ref QuoteServerVersion
         - Namespace: aws:elasticbeanstalk:environment
           OptionName: EnvironmentType
           Value: SingleInstance
@@ -238,6 +248,12 @@ Resources:
         - Namespace: "aws:elasticbeanstalk:application:environment"
           OptionName: port
           Value: 8080
+        - Namespace: "aws:elasticbeanstalk:application:environment"
+          OptionName: NODE_ENV
+          Value: Production
+        - Namespace: "aws:elasticbeanstalk:application:environment"
+          OptionName: quote_server_version
+          Value: !Ref QuoteServerVersion
         - Namespace: aws:elasticbeanstalk:environment
           OptionName: EnvironmentType
           Value: SingleInstance
@@ -375,6 +391,243 @@ Resources:
         - Key: "name"
           Value:
             !Join ["-", [!Ref AWS::StackName, "system-test-codebuid-project"]]
+
+  CodePipelineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Join ["-", [!Ref AWS::StackName, "codepipeline-role"]]
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - "codepipeline.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Path: /service-role/
+      Policies:
+        - PolicyName:
+            !Join ["-", [!Ref AWS::StackName, "codepipeline-access-policy"]]
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+            - Action:
+              - iam:PassRole
+              Resource: "*"
+              Effect: Allow
+              Condition:
+                StringEqualsIfExists:
+                  iam:PassedToService:
+                    - cloudformation.amazonaws.com
+                    - elasticbeanstalk.amazonaws.com
+                    - ec2.amazonaws.com
+                    - ecs-tasks.amazonaws.com
+            - Action:
+                - codecommit:CancelUploadArchive
+                - codecommit:GetBranch
+                - codecommit:GetCommit
+                - codecommit:GetRepository
+                - codecommit:GetUploadArchiveStatus
+                - codecommit:UploadArchive
+              Resource: "*"
+              Effect: Allow
+            - Action:
+                - codedeploy:CreateDeployment
+                - codedeploy:GetApplication
+                - codedeploy:GetApplicationRevision
+                - codedeploy:GetDeployment
+                - codedeploy:GetDeploymentConfig
+                - codedeploy:RegisterApplicationRevision
+              Resource: "*"
+              Effect: Allow
+            - Action:
+                - codestar-connections:UseConnection
+              Resource: "*"
+              Effect: Allow
+            - Action:
+                - elasticbeanstalk:*
+                - ec2:*
+                - elasticloadbalancing:*
+                - autoscaling:*
+                - cloudwatch:*
+                - s3:*
+                - sns:*
+                - cloudformation:*
+                - rds:*
+                - sqs:*
+                - ecs:*
+              Resource: "*"
+              Effect: Allow
+            - Action:
+                - lambda:InvokeFunction
+                - lambda:ListFunctions
+              Resource: "*"
+              Effect: Allow
+            - Action:
+                - opsworks:CreateDeployment
+                - opsworks:DescribeApps
+                - opsworks:DescribeCommands
+                - opsworks:DescribeDeployments
+                - opsworks:DescribeInstances
+                - opsworks:DescribeStacks
+                - opsworks:UpdateApp
+                - opsworks:UpdateStack
+              Resource: "*"
+              Effect: Allow
+            - Action:
+                - cloudformation:CreateStack
+                - cloudformation:DeleteStack
+                - cloudformation:DescribeStacks
+                - cloudformation:UpdateStack
+                - cloudformation:CreateChangeSet
+                - cloudformation:DeleteChangeSet
+                - cloudformation:DescribeChangeSet
+                - cloudformation:ExecuteChangeSet
+                - cloudformation:SetStackPolicy
+                - cloudformation:ValidateTemplate
+              Resource: "*"
+              Effect: Allow
+            - Action:
+                - codebuild:BatchGetBuilds
+                - codebuild:StartBuild
+                - codebuild:BatchGetBuildBatches
+                - codebuild:StartBuildBatch
+              Resource: "*"
+              Effect: Allow
+            - Effect: Allow
+              Action:
+                - devicefarm:ListProjects
+                - devicefarm:ListDevicePools
+                - devicefarm:GetRun
+                - devicefarm:GetUpload
+                - devicefarm:CreateUpload
+                - devicefarm:ScheduleRun
+              Resource: "*"
+            - Effect: Allow
+              Action:
+                - servicecatalog:ListProvisioningArtifacts
+                - servicecatalog:CreateProvisioningArtifact
+                - servicecatalog:DescribeProvisioningArtifact
+                - servicecatalog:DeleteProvisioningArtifact
+                - servicecatalog:UpdateProduct
+              Resource: "*"
+            - Effect: Allow
+              Action:
+                - cloudformation:ValidateTemplate
+              Resource: "*"
+            - Effect: Allow
+              Action:
+                - ecr:DescribeImages
+              Resource: "*"
+            - Effect: Allow
+              Action:
+                - states:DescribeExecution
+                - states:DescribeStateMachine
+                - states:StartExecution
+              Resource: "*"
+            - Effect: Allow
+              Action:
+                - appconfig:StartDeployment
+                - appconfig:StopDeployment
+                - appconfig:GetDeployment
+              Resource: "*"
+
+  QuoteServerCiCd:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      Name: !Join ["-", [!Ref AWS::StackName, "codepipeline", "quote-server"]]
+      RoleArn: !GetAtt CodePipelineRole.Arn
+      ArtifactStore:
+        Type: S3
+        Location: !Ref DevBuildsS3Bucket
+      Stages:
+        -
+          Name: GetYouSomeCode
+          Actions:
+            - OutputArtifacts:
+                - Name: SourceOutput
+              InputArtifacts: []
+              Name: source
+              Configuration:
+                RepositoryName: !Ref RepoName
+                BranchName: master
+                PollForSourceChanges: 'false'
+              RunOrder: 1
+              ActionTypeId:
+                Version: '1'
+                Provider: CodeCommit
+                Category: Source
+                Owner: AWS
+
+        -
+          Name: RunUnitTests
+          Actions:
+            - InputArtifacts:
+                - Name: SourceOutput
+              Name: unittests
+              Configuration:
+                BatchEnabled: 'false'
+                CombineArtifacts: 'false'
+                ProjectName: !Ref UnitTestCodeBuildProject
+                PrimarySource: SourceOutput
+              RunOrder: 1
+              ActionTypeId:
+                Version: '1'
+                Provider: CodeBuild
+                Category: Test
+                Owner: AWS
+        
+        -
+          Name: DeployToTest
+          Actions:
+            - InputArtifacts:
+                - Name: SourceOutput
+              Name: deploytotest
+              Configuration:
+                ApplicationName: !Ref ElasticBeanstalkApp
+                EnvironmentName: !Ref ElasticBeanstalkTestEnvironment 
+              RunOrder: 1
+              ActionTypeId:
+                Version: '1'
+                Provider: ElasticBeanstalk
+                Category: Deploy
+                Owner: AWS
+
+        -
+          Name: RunSystemTests
+          Actions:
+            - InputArtifacts:
+              - Name: SourceOutput
+              Name: systemtests
+              Configuration:
+                BatchEnabled: 'false'
+                CombineArtifacts: 'false'
+                ProjectName: !Ref SystemTestCodeBuildProject
+                PrimarySource: SourceOutput
+              RunOrder: 1
+              ActionTypeId:
+                Version: '1'
+                Provider: CodeBuild
+                Category: Test
+                Owner: AWS
+
+        -
+          Name: DeployToProd
+          Actions:
+            - InputArtifacts:
+                - Name: SourceOutput
+              Name: deploytoprod
+              Configuration:
+                ApplicationName: !Ref ElasticBeanstalkApp
+                EnvironmentName: !Ref ElasticBeanstalkProdEnvironment 
+              RunOrder: 1
+              ActionTypeId:
+                Version: '1'
+                Provider: ElasticBeanstalk
+                Category: Deploy
+                Owner: AWS
+  
 Outputs:
   TestURL:
     Description: Test app URL.

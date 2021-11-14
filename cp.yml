@@ -206,5 +206,39 @@ Resources:
                 Provider: ElasticBeanstalk
                 Category: Deploy
                 Owner: AWS
+
+        -
+          Name: RunSystemTests
+          Actions:
+            - InputArtifacts:
+              - Name: SourceOutput
+              Name: systemtests
+              Configuration:
+                BatchEnabled: 'false'
+                CombineArtifacts: 'false'
+                ProjectName: build-system-test-quote-server-fm-cen-fin
+                PrimarySource: SourceOutput
+              RunOrder: 1
+              ActionTypeId:
+                Version: '1'
+                Provider: CodeBuild
+                Category: Test
+                Owner: AWS
+
+        -
+          Name: DeployToProd
+          Actions:
+            - InputArtifacts:
+                - Name: SourceOutput
+              Name: deploytoprod
+              Configuration:
+                ApplicationName: quote-server
+                EnvironmentName: prod 
+              RunOrder: 1
+              ActionTypeId:
+                Version: '1'
+                Provider: ElasticBeanstalk
+                Category: Deploy
+                Owner: AWS
             
 
