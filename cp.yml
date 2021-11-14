@@ -1,0 +1,66 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: CEN 6017 final project infrastructure CloudFormation template.
+
+Resources:
+  QuoteServerPipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      RoleArn: arn:aws:iam::623935158689:role/service-role/AWSCodePipelineServiceRole-us-east-1-quote-server-demo-pipeline
+      ArtifactStore:
+        Type: S3
+        Location: codepipeline-us-east-1-220988666302
+      Stages:
+        -
+          Name: GetYouSomeCode
+          Actions:
+            - OutputArtifacts:
+                - Name: SourceOutput
+              InputArtifacts: []
+              Name: source
+              Configuration:
+                RepositoryName: quote-server
+                BranchName: master
+                PollForSourceChanges: 'false'
+              RunOrder: 1
+              ActionTypeId:
+                Version: '1'
+                Provider: CodeCommit
+                Category: Source
+                Owner: AWS
+
+        -
+          Name: RunUnitTests
+          Actions:
+            - InputArtifacts:
+                - Name: SourceOutput
+              Name: unittests
+              Configuration:
+                BatchEnabled: 'false'
+                CombineArtifacts: 'false'
+                ProjectName: build-test-quote-server-fm-cen-fin
+                PrimarySource: SourceOutput
+              RunOrder: 1
+              ActionTypeId:
+                Version: '1'
+                Provider: CodeBuild
+                Category: Test
+                Owner: AWS
+        
+        -
+          Name: DeployToTest
+          Actions:
+            - InputArtifacts:
+                - Name: SourceOutput
+              Name: deploytotest
+              Configuration:
+                ApplicationName: quote-server
+                EnvironmentName: test 
+              RunOrder: 1
+              ActionTypeId:
+                Version: '1'
+                Provider: ElasticBeanstalk
+                Category: Deploy
+                Owner: AWS
+            
+

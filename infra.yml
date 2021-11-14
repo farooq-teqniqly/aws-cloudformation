@@ -201,7 +201,7 @@ Resources:
           OptionName: Subnets
           Value: !Ref PublicSubnet
         - Namespace: "aws:elasticbeanstalk:application:environment"
-          OptionName: PORT
+          OptionName: port
           Value: 8080
         - Namespace: aws:elasticbeanstalk:environment
           OptionName: EnvironmentType
@@ -236,7 +236,7 @@ Resources:
           OptionName: Subnets
           Value: !Ref PublicSubnet
         - Namespace: "aws:elasticbeanstalk:application:environment"
-          OptionName: PORT
+          OptionName: port
           Value: 8080
         - Namespace: aws:elasticbeanstalk:environment
           OptionName: EnvironmentType
