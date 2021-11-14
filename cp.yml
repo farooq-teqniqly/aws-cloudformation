@@ -3,13 +3,157 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: CEN 6017 final project infrastructure CloudFormation template.
 
 Resources:
+
+  CodePipelineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Join ["-", [!Ref AWS::StackName, "codepipeline-role"]]
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - "codepipeline.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Path: /service-role/
+      Policies:
+        - PolicyName:
+            !Join ["-", [!Ref AWS::StackName, "codepipeline-access-policy"]]
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+            - Action:
+              - iam:PassRole
+              Resource: "*"
+              Effect: Allow
+              Condition:
+                StringEqualsIfExists:
+                  iam:PassedToService:
+                    - cloudformation.amazonaws.com
+                    - elasticbeanstalk.amazonaws.com
+                    - ec2.amazonaws.com
+                    - ecs-tasks.amazonaws.com
+            - Action:
+                - codecommit:CancelUploadArchive
+                - codecommit:GetBranch
+                - codecommit:GetCommit
+                - codecommit:GetRepository
+                - codecommit:GetUploadArchiveStatus
+                - codecommit:UploadArchive
+              Resource: "*"
+              Effect: Allow
+            - Action:
+                - codedeploy:CreateDeployment
+                - codedeploy:GetApplication
+                - codedeploy:GetApplicationRevision
+                - codedeploy:GetDeployment
+                - codedeploy:GetDeploymentConfig
+                - codedeploy:RegisterApplicationRevision
+              Resource: "*"
+              Effect: Allow
+            - Action:
+                - codestar-connections:UseConnection
+              Resource: "*"
+              Effect: Allow
+            - Action:
+                - elasticbeanstalk:*
+                - ec2:*
+                - elasticloadbalancing:*
+                - autoscaling:*
+                - cloudwatch:*
+                - s3:*
+                - sns:*
+                - cloudformation:*
+                - rds:*
+                - sqs:*
+                - ecs:*
+              Resource: "*"
+              Effect: Allow
+            - Action:
+                - lambda:InvokeFunction
+                - lambda:ListFunctions
+              Resource: "*"
+              Effect: Allow
+            - Action:
+                - opsworks:CreateDeployment
+                - opsworks:DescribeApps
+                - opsworks:DescribeCommands
+                - opsworks:DescribeDeployments
+                - opsworks:DescribeInstances
+                - opsworks:DescribeStacks
+                - opsworks:UpdateApp
+                - opsworks:UpdateStack
+              Resource: "*"
+              Effect: Allow
+            - Action:
+                - cloudformation:CreateStack
+                - cloudformation:DeleteStack
+                - cloudformation:DescribeStacks
+                - cloudformation:UpdateStack
+                - cloudformation:CreateChangeSet
+                - cloudformation:DeleteChangeSet
+                - cloudformation:DescribeChangeSet
+                - cloudformation:ExecuteChangeSet
+                - cloudformation:SetStackPolicy
+                - cloudformation:ValidateTemplate
+              Resource: "*"
+              Effect: Allow
+            - Action:
+                - codebuild:BatchGetBuilds
+                - codebuild:StartBuild
+                - codebuild:BatchGetBuildBatches
+                - codebuild:StartBuildBatch
+              Resource: "*"
+              Effect: Allow
+            - Effect: Allow
+              Action:
+                - devicefarm:ListProjects
+                - devicefarm:ListDevicePools
+                - devicefarm:GetRun
+                - devicefarm:GetUpload
+                - devicefarm:CreateUpload
+                - devicefarm:ScheduleRun
+              Resource: "*"
+            - Effect: Allow
+              Action:
+                - servicecatalog:ListProvisioningArtifacts
+                - servicecatalog:CreateProvisioningArtifact
+                - servicecatalog:DescribeProvisioningArtifact
+                - servicecatalog:DeleteProvisioningArtifact
+                - servicecatalog:UpdateProduct
+              Resource: "*"
+            - Effect: Allow
+              Action:
+                - cloudformation:ValidateTemplate
+              Resource: "*"
+            - Effect: Allow
+              Action:
+                - ecr:DescribeImages
+              Resource: "*"
+            - Effect: Allow
+              Action:
+                - states:DescribeExecution
+                - states:DescribeStateMachine
+                - states:StartExecution
+              Resource: "*"
+            - Effect: Allow
+              Action:
+                - appconfig:StartDeployment
+                - appconfig:StopDeployment
+                - appconfig:GetDeployment
+              Resource: "*"
+
   QuoteServerPipeline:
     Type: AWS::CodePipeline::Pipeline
     Properties:
-      RoleArn: arn:aws:iam::623935158689:role/service-role/AWSCodePipelineServiceRole-us-east-1-quote-server-demo-pipeline
+      Name: !Join ["-", [!Ref AWS::StackName, "codepipeline", "quote-server"]]
+      #RoleArn: arn:aws:iam::623935158689:role/service-role/AWSCodePipelineServiceRole-us-east-1-quote-server-demo-pipeline
+      RoleArn: !GetAtt CodePipelineRole.Arn
       ArtifactStore:
         Type: S3
-        Location: codepipeline-us-east-1-220988666302
+        Location: fm-cen-fin-quoteserverbuilds
       Stages:
         -
           Name: GetYouSomeCode
